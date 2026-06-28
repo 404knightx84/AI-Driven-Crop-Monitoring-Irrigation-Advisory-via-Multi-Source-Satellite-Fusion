@@ -1,9 +1,6 @@
 # AI-Driven-Crop-Monitoring-Irrigation-Advisory-via-Multi-Source-Satellite-Fusion
 Automated crop type classification, phenological stage mapping, and moisture stress detection across growth stages — combining optical and microwave SAR satellite data with deep learning.
 
-
-# AI-Driven Crop Monitoring & Irrigation Advisory via Multi-Source Satellite Fusion
-
 An enterprise-grade, deep learning pipeline for automated crop type classification, phenological stage mapping, and moisture stress detection. This system eliminates optical cloud-cover limitations by fusing Sentinel-1 (SAR) and Sentinel-2 (Optical) data to deliver high-frequency, actionable irrigation insights throughout the agricultural lifecycle.
 
 ---
