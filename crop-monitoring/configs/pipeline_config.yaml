@@ -1,0 +1,76 @@
+# pipeline_config.yaml — central config for all pipeline parameters
+
+data:
+  data_dir: "/app/data"
+  raw_dir: "/app/data/raw"
+  processed_dir: "/app/data/processed"
+  fusion_dir: "/app/data/fused"
+
+sentinel2:
+  bands: ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
+  cloud_cover_max: 20          # % max cloud cover for scene selection
+  resolution: 10               # metres
+  composite_days: 16           # temporal window for cloud-free composite
+
+sentinel1:
+  polarizations: ["VV", "VH"]
+  orbit_direction: "ASCENDING"
+  speckle_filter: "lee"
+  filter_size: 7
+
+modis:
+  product: "MOD13Q1"           # 250m 16-day NDVI/EVI
+  bands: ["NDVI", "EVI"]
+  temporal_window_days: 365    # time series length
+
+fusion:
+  target_resolution: 10        # metres — upsample all sources to S2 resolution
+  target_crs: "EPSG:32643"    # UTM zone 43N (India)
+  stack_order:
+    - sentinel2
+    - sentinel1
+    - modis_indices
+
+models:
+  crop_classifier:
+    architecture: "unet_lstm"
+    backbone: "resnet34"
+    n_classes: 8
+    sequence_length: 6         # number of temporal composites
+    input_channels: 12         # 10 S2 bands + 2 SAR polarizations
+    weights: "models/weights/crop_unet_lstm.pth"
+
+  phenology_mapper:
+    architecture: "temporal_transformer"
+    d_model: 128
+    n_heads: 8
+    n_layers: 4
+    sequence_length: 23        # one MODIS composite per 16 days over a year
+    n_stages: 6                # crop growth stages
+    weights: "models/weights/phenology_transformer.pth"
+
+  stress_detector:
+    architecture: "fusion_cnn"
+    input_channels: 14         # 10 S2 + 2 SAR + NDWI + NDVI
+    n_classes: 3               # none / mild / severe
+    weights: "models/weights/stress_cnn.pth"
+
+advisory:
+  thresholds:
+    stress_mild: 0.4
+    stress_severe: 0.7
+  irrigation_rules:
+    wheat:
+      crown_root_initiation: { stress_mild: 25, stress_severe: 40 }   # mm
+      tillering:              { stress_mild: 30, stress_severe: 50 }
+      jointing:               { stress_mild: 40, stress_severe: 60 }
+      heading:                { stress_mild: 35, stress_severe: 55 }
+    rice:
+      transplanting:          { stress_mild: 50, stress_severe: 80 }
+      tillering:              { stress_mild: 40, stress_severe: 65 }
+      panicle_initiation:     { stress_mild: 45, stress_severe: 70 }
+      grain_filling:          { stress_mild: 35, stress_severe: 55 }
+
+pipeline:
+  interval_hours: 24
+  tickers: []                  # field IDs or polygon identifiers

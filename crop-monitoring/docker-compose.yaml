@@ -1,0 +1,87 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      target: app
+    env_file: configs/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    command: uvicorn advisory.api:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+      - satellite_data:/app/data
+
+  pipeline:
+    build:
+      context: .
+      target: app
+    env_file: configs/.env
+    depends_on:
+      - postgres
+      - influxdb
+    command: python -m pipeline.orchestrator
+    volumes:
+      - .:/app
+      - satellite_data:/app/data
+
+  airflow:
+    image: apache/airflow:2.9.1-python3.11
+    env_file: configs/.env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./pipeline/dags:/opt/airflow/dags
+    command: >
+      bash -c "airflow db init && airflow webserver & airflow scheduler"
+
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: cropmon
+      POSTGRES_PASSWORD: cropmon
+      POSTGRES_DB: cropmon
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword
+      DOCKER_INFLUXDB_INIT_ORG: cropmon
+      DOCKER_INFLUXDB_INIT_BUCKET: crop_metrics
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./dashboards:/etc/grafana/provisioning/dashboards
+
+volumes:
+  satellite_data:
+  pg_data:
+  influxdb_data:
+  grafana_data:
